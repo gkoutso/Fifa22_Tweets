@@ -18,10 +18,10 @@ install.packages("xlsx")
 ```
 
 # Change the next four lines based on your own consumer_key, consume_secret, access_token, and access_secret. 
-consumer_key <- "59lzcBbOU78B50SLYAnKkMfdy"
-consumer_secret <- "Cy73NYBRMSj1FqcQNogsPbfN3mpNo2LLyhnXUdk2Zfptbi6HP1"
-access_token <- "1326316574517710848-QbMRAd7FRNxvdWJIx3xFCOM3ZqzC2E"
-access_secret <- "J7mdsPwvvr27JVeWKCYxdgrgRqsM8QJIyUCJ7z4akqdnq"
+consumer_key <- ""
+consumer_secret <- ""
+access_token <- ""
+access_secret <- ""
 
 setup_twitter_oauth(consumer_key, consumer_secret, access_token, access_secret)
 

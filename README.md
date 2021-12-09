@@ -21,7 +21,7 @@ We are going to collect data from twitter from the past 7 days about what people
 Georgios Koutsopodiotis (@gkoutso)
  - ST. Thomas University Carnival Cruise Lines School of Science
 
-Carlin Celius (@Cman293!)
+Carlin Celius (@Cman293)
  - ST. Thomas University Carnival Cruise Lines School of Science
 
 ## Libraries Required

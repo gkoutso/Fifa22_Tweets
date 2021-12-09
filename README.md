@@ -25,7 +25,7 @@ Carlin Celius (@carlincelius)
  - ST. Thomas University Carnival Cruise Lines School of Science
 
 ## Libraries Required
-The libraries that we used for this project were: 
+The libraries that are required for this project are: 
 - library(tidyverse)
 - library(jsonlite)
 - library(stringr)

@@ -1,0 +1,645 @@
+---
+title: "Final Project: FIFA TWitter"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(rtweet)
+library(stringr)
+library(tm)
+library(quanteda)
+install.packages("writexl")
+library(writexl)
+library(readxl)
+install.packages("readxl")
+install.packages("openxlsx")
+install.packages("xlsx")
+```
+
+# Change the next four lines based on your own consumer_key, consume_secret, access_token, and access_secret. 
+consumer_key <- "59lzcBbOU78B50SLYAnKkMfdy"
+consumer_secret <- "Cy73NYBRMSj1FqcQNogsPbfN3mpNo2LLyhnXUdk2Zfptbi6HP1"
+access_token <- "1326316574517710848-QbMRAd7FRNxvdWJIx3xFCOM3ZqzC2E"
+access_secret <- "J7mdsPwvvr27JVeWKCYxdgrgRqsM8QJIyUCJ7z4akqdnq"
+
+setup_twitter_oauth(consumer_key, consumer_secret, access_token, access_secret)
+
+```{r}
+topic <- "FIFA22"
+```
+
+fifadata <- search_tweets(topic, n=10000, include_rts = FALSE)
+
+write_xlsx(fifadata, "fifadata.csv")
+
+# Text ANalysis
+
+```{r}
+install.packages("tm")
+install.packages("quanteda")
+```
+
+```{r}
+library(tidyverse)
+library(jsonlite)
+library(stringr)
+library(tm)
+library(quanteda)
+library(wordcloud)
+install.packages("RColorBrewer")
+library(RColorBrewer)
+library(tidyverse)
+library(arules)
+library(arulesViz)
+library(lubridate)
+library(stringr)
+library(tm)
+library(quanteda)
+library(reshape2)
+library(lda)
+library(syuzhet)
+library(wordcloud2)
+library(party)
+library(rpart)
+library(rpart.plot)
+library(caTools)
+library(e1071)
+library(ModelMetrics)
+library(forecast)
+library(corrplot)
+library(reshape2)
+library(ggplot2)
+install.packages('sentimentr')
+library(sentimentr)
+library(ndjson)
+install.packages("httpuv")
+## load rtweet
+install.packages("rtweet")
+install.packages("httr")
+library(httr)
+library(rtweet)
+library(httpuv)
+library(plyr)
+library(tidyr)
+install.packages("tidytext")
+library(tidytext)
+library(ggplot2)
+install.packages("twitteR")
+library(twitteR)
+library(purrr)
+library(dplyr)
+install.packages("textdata")
+```
+
+```{r}
+fifadata <- read_excel("~/Desktop/Program for Data Analytics/fifadata_original.xlsx")
+```
+
+```{r}
+head(fifadata$text)
+#remove http elements manually
+fifadata$stripped_text1<-gsub("http|t.co|19|positive|negative|virus","",fifadata$text)
+# remove punctuation and add id for each tweet also use unnest_tokens() function to convert into lower case
+fifadata_stem<-fifadata%>%select(stripped_text1)%>%unnest_tokens(word,stripped_text1)
+
+head(fifadata_stem)
+#remove stop words from your list of words
+cleaned_fifadata<-fifadata_stem%>%anti_join(stop_words)
+head(cleaned_fifadata)
+
+head(fifadata$text)
+```
+
+```{r}
+#Top 20 words in #fifa
+cleaned_fifadata %>%
+  dplyr::count(word, sort =TRUE)%>%
+  top_n(20)%>%
+  mutate(word=reorder(word,n))%>%
+  ggplot(aes(x=word,y=n))+
+  geom_col()+
+  xlab(NULL)+
+  coord_flip()+
+  theme_classic()+
+  labs(x="Count",
+       y="Unique words",
+       title="Unique words found in #fifa22")
+```
+```{r}
+#bing sentiment analysis 
+bing_fifadata<-cleaned_fifadata%>%inner_join(get_sentiments("bing"))%>%dplyr::count(word,sentiment,sort=TRUE)%>%ungroup()
+bing_fifadata
+
+bing_fifadata%>%group_by(sentiment)%>%top_n(20)%>%ungroup()%>%mutate(word=reorder(word,n))%>%
+  ggplot(aes(word,n,fill=sentiment))+
+  geom_col(show.legend = FALSE)+
+  facet_wrap(~sentiment, scales="free_y")+
+  labs(title = "Tweets containing 'FIFA22'",
+       y="Contribution to sentiment",
+       x=NULL)+
+  coord_flip()+theme_bw()
+```
+
+```{r}
+#function for assigning score(snt) to each tweet
+
+sentiment_bing=function(twt){
+  
+ #step 1: perform basic text cleaning (on the tweet)
+  twt_tbl=tibble(text=twt)%>%
+    mutate(
+      #remove http elements manually
+      stripped_text = gsub("http\\S+","",text)
+    )%>%
+    unnest_tokens(word,stripped_text)%>%
+    anti_join(stop_words)%>%
+    inner_join(get_sentiments("bing"))%>%
+    dplyr::count(word,sentiment,sort=TRUE)%>%
+    ungroup()%>%
+    #create a column "snt" that assigns a -1 to all negative words and 1 to all positive words.
+    mutate (
+      snt = case_when(
+        sentiment=='negative'~n*(-1),
+        sentiment=='positive'~n*1)
+      )
+  #calculate total snt
+  sent.snt=case_when(
+    nrow(twt_tbl)==0~0, #if there are no words, snt is 0
+    nrow(twt_tbl)>0~sum(twt_tbl$score)#otherwise sum the negative and positives
+  )
+  #this is to keep track of which tweets contained no words at all from this bing list
+  zero.type=case_when(
+    nrow(twt_tbl)==0~"Not Classified",
+    nrow(twt_tbl)>0~"Classified"
+  )
+  list(snt = sent.score, type=zero.type, twt_tbl=twt_tbl)
+}
+
+```
+
+```{r}
+library(sentimentr)
+# Apply the function 
+fifa_sent = lapply(cleaned_fifadata$word, function(x){sentiment_bing(x)})
+```
+```{r}
+positive = scan('~/Desktop/Program for Data Analytics/positive-words.txt', what = 'character', comment.char = ';')
+negative = scan('~/Desktop/Program for Data Analytics/negative-words.txt', what = 'character', comment.char = ';')
+# add your list of words below as you wish if missing in above read lists
+pos.words = c(positive,'upgrade','Congrats','prizes','prize','thanks','thnx',
+              'Grt','gr8','plz','trending','recovering','brainstorm','leader')
+neg.words = c(negative,'wtf','wait','waiting','epicfail','Fight','fighting',
+              'arrest','no','not')
+```
+
+```{r}
+score.sentiment = function(sentences, pos.words, neg.words, .progress='none')
+{
+  require(plyr)
+  require(stringr)
+  
+  # we are giving vector of sentences as input. 
+  # plyr will handle a list or a vector as an "l" for us
+  # we want a simple array of scores back, so we use "l" + "a" + "ply" = laply:
+  scores = laply(sentences, function(sentence, pos.words, neg.words) {
+    
+    # clean up sentences with R's regex-driven global substitute, gsub() function:
+    sentence = gsub('https://','',sentence)
+    sentence = gsub('http://','',sentence)
+    sentence = gsub('[^[:graph:]]', ' ',sentence)
+    sentence = gsub('[[:punct:]]', '', sentence)
+    sentence = gsub('[[:cntrl:]]', '', sentence)
+    sentence = gsub('\\d+', '', sentence)
+    sentence = str_replace_all(sentence,"[^[:graph:]]", " ")
+    # and convert to lower case:
+    sentence = tolower(sentence)
+    
+    # split into words. str_split is in the stringr package
+    word.list = str_split(sentence, '\\s+')
+    # sometimes a list() is one level of hierarchy too much
+    words = unlist(word.list)
+    
+    # compare our words to the dictionaries of positive & negative terms
+    pos.matches = match(words, pos.words)
+    neg.matches = match(words, neg.words)
+    
+    # match() returns the position of the matched term or NA
+    # we just want a TRUE/FALSE:
+    pos.matches = !is.na(pos.matches)
+    neg.matches = !is.na(neg.matches)
+    
+    # TRUE/FALSE will be treated as 1/0 by sum():
+    score = sum(pos.matches) - sum(neg.matches)
+    
+    return(score)
+  }, pos.words, neg.words, .progress=.progress )
+  
+  scores.df = data.frame(score=scores, text=sentences)
+  return(scores.df)
+}
+```
+
+```{r}
+analysis <- score.sentiment(cleaned_fifadata, pos.words, neg.words)
+# sentiment score frequency table
+table(analysis$score)
+```
+
+```{r}
+analysis %>%
+  ggplot(aes(x=score)) + 
+  geom_histogram(binwidth = 1, fill = "lightblue")+ 
+  ylab("Frequency") + 
+  xlab("sentiment score") +
+  ggtitle("Distribution of Sentiment scores of FIFA the tweets") +
+  ggeasy::easy_center_title()
+```
+
+```{r}
+neutral <- length(which(analysis$score == 0))
+positive <- length(which(analysis$score > 0))
+negative <- length(which(analysis$score < 0))
+Sentiment <- c("Positive","Neutral","Negative")
+Count <- c(positive,neutral,negative)
+output <- data.frame(Sentiment,Count)
+output$Sentiment<-factor(output$Sentiment,levels=Sentiment)
+ggplot(output, aes(x=Sentiment,y=Count))+
+  geom_bar(stat = "identity", aes(fill = Sentiment))+
+  ggtitle("Barplot of Sentiment type of FIFA tweets")
+```
+
+```{r}
+neutral <- length(which(analysis$score == 0))
+positive <- length(which(analysis$score > 0))
+negative <- length(which(analysis$score < 0))
+Sentiment <- c("Positive","Neutral","Negative")
+Count <- c(positive,neutral,negative)
+output <- data.frame(Sentiment,Count)
+output$Sentiment<-factor(output$Sentiment,levels=Sentiment)
+ggplot(output, aes(x=Sentiment,y=Count))+
+  geom_bar(stat = "identity", aes(fill = Sentiment))+
+  ggtitle("Barplot of Sentiment type of FIFA tweets")
+```
+
+```{r}
+require(XML)
+require(tm)
+require(wordcloud)
+require(RColorBrewer)
+u = "~/Desktop/Program for Data Analytics/fifadata_original.xlsx"
+t = read_excel(u)[[1]]
+ap.corpus <- Corpus(DataframeSource(data.frame(as.character(t[,5]))))
+ap.corpus <- tm_map(ap.corpus, removePunctuation)
+ap.corpus <- tm_map(ap.corpus, content_transformer(tolower))
+ap.corpus <- tm_map(ap.corpus, function(x) removeWords(x, stopwords("english")))
+ap.corpus <- Corpus(VectorSource(ap.corpus))
+ap.tdm <- TermDocumentMatrix(ap.corpus)
+ap.m <- as.matrix(ap.tdm)
+ap.v <- sort(rowSums(ap.m),decreasing=TRUE)
+ap.d <- data.frame(word = names(ap.v),freq=ap.v)
+table(ap.d$freq)
+pal2 <- brewer.pal(8,"Dark2")
+png("wordcloud_packages.png", width=1280,height=800)
+wordcloud(ap.d$word,ap.d$freq, scale=c(8,.2),min.freq=3,
+max.words=Inf, random.order=FALSE, rot.per=.15, colors=pal2)
+dev.off()
+ggplot(tdm[1:20,], aes(x=reorder(word, freq), y=freq)) + 
+  geom_bar(stat="identity") +
+  xlab("Terms") + 
+  ylab("Count") + 
+  coord_flip() +
+  theme(axis.text=element_text(size=7)) +
+  ggtitle('Most common word frequency plot') +
+  ggeasy::easy_center_title()
+```
+
+```{r}
+get_sentiments("bing") %>% filter(sentiment=="positive")
+```
+```{r}
+get_sentiments("bing") %>% filter(sentiment=="negative")
+```
+```{r}
+get_sentiments("afinn") %>% filter(value=="3")
+```
+```{r}
+get_sentiments("afinn") %>% filter(value=="-3")
+```
+```{r}
+bing_fifadata = cleaned_fifadata %>%
+  + inner_join(get_sentiments("bing")) %>%
+  + dplyr::count(word, sentiment, sort = TRUE) %>%
+  + ungroup()
+```
+
+```{r}
+#Applying the function on to assign score to each tweet in fifadata
+fifadata_sent=lapply(fifadata$text,function(x){sentiment_bing(x)})
+
+fifadata_sent[2566]
+length(fifadata_sent)
+
+#unlisting dat1_sent into a tibble for plotting
+fifadata_sentiment=tibble(keyword="fifa22",
+  snt=unlist(map(fifadata_sent,'snt')),
+  type=unlist(map(fifadata_sent,'type'))
+  )
+
+#Final histogram for taking a call on which way the sentiments is heavier
+ggplot(fifadata_sentiment,aes(x=snt))+geom_histogram(bins=15,alpha=0.6,fill="orange")
+```
+
+```{r}
+#plot occurrences of each keyword in hashtags
+hashtags <-data.frame(table(unlist(fifadata$hashtags)))
+
+#remove hashtags that appear less than 4 times
+common_hashtags <- hashtags[which(hashtags$Freq > 4),] 
+
+#remove obvious and unrelated hashtags
+related_hashtags <- c("fifa", "Fifa", "Fifa22", "FIFA22", "playstation", "xbox", "UltimateTeam", 
+                      "CarrerMode", "Messi", "Neymar", "VoltaFootball", "ProClubs", "Seasons", "seasons", "carrermode",
+                      "voltafootball", "proclubs", "FUT22", "Rivals", "TransferMarket",
+                      "TransferList", "FUTChamps", "PromoPacks", "GoldPacks", "TOTW", "TOTWPack")
+
+hashtags = hashtags[which(hashtags$Var1 %in% related_hashtags),]
+hashtags <- as.data.frame(t(hashtags))
+
+# The WordCloud
+#wordcloud(word = hashtags$Var1,freq=hashtags$Freq, max.words=200, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"))
+```
+
+```{r}
+FIFACount <- sum(str_detect(fifadata$text, "FIFA22"))
+cat("Number of tweets with 'FIFA22':",FIFACount, "\n")
+```
+
+# Count FIFA 22 OR FIFA22
+```{r}
+FIFA22orfifa22 <- sum(str_detect(fifadata$text,"fifa22|FIFA22"))
+cat("Number of tweets with 'FIFA22' or 'fifa22',:" ,FIFA22orfifa22)
+```
+
+# Ignore #FIFA22 or fifa22
+```{r}
+allFIFA22 <- sum(str_detect(fifadata$text,regex("FIFA22", ignore_case    = TRUE)))
+cat("Number of tweets ignoring # with fifa22',:", allFIFA22)
+```
+
+# Select the mentions of FIFA22
+```{r}
+FIFA22Tweets <- subset(fifadata,str_detect(text,regex("@FIFA22",ignore_case = TRUE)))
+head(FIFA22Tweets)
+```
+
+# How many hash tags
+```{r}
+sum(str_detect(fifadata$text,"#FIFA22"))
+```
+
+# how many times did he mention someone
+```{r}
+sum(str_detect(fifadata$text,"@FIFA22"))
+```
+
+```{r}
+library(tidyverse)
+library(rtweet)
+library(stringr)
+library(tm)
+library(quanteda)
+```
+
+```{r}
+topic <- "FIFA22"
+```
+
+```{r}
+tweets <- search_tweets(topic, n=1000, include_rts = FALSE)
+```
+
+```{r}
+rt <- search_tweets("#rstats", n = 1000, include_rts = FALSE)
+
+```
+
+```{r}
+topics <- c("FIFA 22", "Fifa 22", "FIFA22", "Fifa22", "fifa22", "fifa 22","#FIFA22", "#fifa22", "#Fifa22")
+```
+
+```{r}
+FIFA22 <- data.frame()
+
+for (topic in topics) {
+  tmp <- search_tweets(topic, n=1000, include_rts = FALSE)
+  tmp$topic <- topic
+  FIFA22 <- rbind(FIFA22, tmp)
+}
+
+write_csv(FIFA22, "FIFA_Data_Final.csv",col_names = TRUE)
+```
+
+```{r}
+test_data <- read.csv("FIFA_Data_Final.csv")
+head(test_data)
+```
+```{r}
+names(FIFA_Data1) <- names(FIFA_Data_Final)
+names(FIFA_Data1)
+```
+```{r}
+write_csv(FIFA_Data1, "FIFA_Data_Project.csv",col_names = TRUE)
+```
+
+# Decision trees
+
+```{r}
+install.packages("party")
+library(party)
+library(tidyverse)
+```
+
+```{r}
+head(FIFA_Data1)
+```
+
+```{r}
+require(caTools)
+
+# Set Seed
+set.seed(321)
+
+## Split the Data
+sample <- sample.split(FIFA_Data1$followers_count, SplitRatio = .6)
+train <- subset(FIFA_Data1, sample==TRUE)
+test <- subset(FIFA_Data1, sample==FALSE)
+train
+```
+
+```{r}
+# Create the tree model
+ctreemodel <- ctree(followers_count~statuses_count+favourites_count, data = train)
+
+plot(ctreemodel)
+```
+
+# Predict Ctree
+```{r}
+pred.ctree <- predict(ctreemodel,newdata = test,type ="response")
+pred.ctree
+ctree.Matrix <- table(test$followers_count,pred.ctree, dnn = c("Actual", "Prediction"))
+ctree.Matrix
+```
+
+```{r}
+accuracy <- sum(diag(ctree.Matrix)/sum(ctree.Matrix))
+accuracy
+```
+
+```{r}
+## new packages
+install.packages("rpart")
+install.packages("rpart.plot")
+library(rpart)
+library(rpart.plot)
+```
+
+```{r}
+require(caTools)
+
+# Set Seed
+set.seed(321)
+
+## Split the Data
+sample <- sample.split(FIFA_Data1$followers_count, SplitRatio = .6)
+train <- subset(FIFA_Data1, sample==TRUE)
+test <- subset(FIFA_Data1, sample==FALSE)
+train
+```
+
+# Create Cart
+```{r}
+cartTreeModel <- rpart(followers_count~retweet_count+friends_count+listed_count+statuses_count,data = train)
+cartTreeModel
+```
+
+## Visualise the tree : 
+## 
+```{r}
+## Visualise the tree: "extra" displays extra information
+## "under"displays the info below the node
+rpart.plot(cartTreeModel,under = TRUE)
+```
+```{r}
+require(caTools)
+
+# Set Seed
+set.seed(321)
+
+## Split the Data
+sample <- sample.split(FIFA_Data1$followers_count, SplitRatio = .6)
+train <- subset(FIFA_Data1, sample==TRUE)
+test <- subset(FIFA_Data1, sample==FALSE)
+train
+```
+
+## Predict CART
+```{r}
+pred.cart <- predict(cartTreeModel,newdata = test,type = "vector")
+Cart.Matrix <- table(test$followers_count,pred.cart, dnn = c("Actual","Prediction"))
+Cart.Matrix
+
+```
+
+## Accuracy
+```{r}
+accuracy <- sum(diag(Cart.Matrix)/sum(Cart.Matrix))
+accuracy
+```
+
+# Naive Bayes
+
+```{r}
+# Install Libraries
+#install.packages("tidyverse")
+#install.packages("caTools")
+#install.packages("caret")
+#install.packages("e1071")
+
+# Load Libraries
+library(tidyverse)
+library(caTools)
+library(caret)
+library(e1071)
+```
+
+```{r}
+FIFA22 <- read.csv("FIFA_Data_Project.csv" , stringsAsFactors = T)
+head(FIFA22)
+```
+
+```{r}
+set.seed(123)
+
+sample = sample.split(FIFA_Data1$favorite_count, SplitRatio = .75)
+train = subset(FIFA_Data1, sample == TRUE)
+test = subset(FIFA_Data1, sample == FALSE)
+```
+
+```{r}
+nb_model <- naiveBayes(favorite_count~retweet_count,followers_count,friends_count,listed_count,statuses_count, data = train)
+nb_model
+```
+
+## Predict the Class
+```{r}
+nb_prediction <- predict(nb_model, test, type = "class")
+# Confusion Matrix
+table(test$favorite_count, nb_prediction, dnn = c("Actual", "Predction"))
+
+# Output results
+data.frame(test, prediction = nb_prediction)
+```
+
+## Predict the Propabilities
+```{r}
+nb_prediction_prob <- predict(nb_model, test, type = "raw")
+results_prob <- data.frame(Actual = test$favorite_count,
+                           PredictionClass= nb_prediction,
+                           Prediction = nb_prediction_prob)
+results_prob
+```
+
+Accuracy = (TP + TN)/(TP + TN + FP + FN)
+```{r}
+tpTN <- nrow(subset(results_prob, Actual == PredictionClass))
+
+testSize <- nrow(test)
+
+accuracy <- tpTN/testSize
+cat("Naive Bayes Classifier Accuracy :" , accuracy)
+```
+
+# Logistic Regression
+
+```{r}
+require(caTools)
+
+# Set Seed
+set.seed(321)
+
+## Split the Data
+sample <- sample.split(FIFA_Data1$followers_count, SplitRatio = .6)
+train <- subset(FIFA_Data1, sample==TRUE)
+test <- subset(FIFA_Data1, sample==FALSE)
+train
+```
+```{r}
+
+classification_model <- glm(as.factor(favorite_count)~retweet_count+followers_count+friends_count, family = "binomial", data = train)
+classification_model
+```
+
+
+

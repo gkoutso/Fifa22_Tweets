@@ -8,7 +8,7 @@ Choose between Association Rules or Clustering.
 
 ### Objective:
 
-Since the world of gamers is keep growing and many gamers try out new games that come out every year, we are going to provide them with the best feedback on FIFA 22 which is considered one of the best soccer video game around the world. Every year the gamers judge and draw  a conclusion about the game based on different variables. The objective of the project is to understand and come up with a conclusion about how successful was the game this current year based on different opinions and beliefs. 
+Since the world of gamers keeps growing and many gamers try out new games that come out every year, we are going to provide them with the best feedback on FIFA 22 which is considered one of the best soccer video game around the world. Every year the gamers judge and draw  a conclusion about the game based on different variables. The objective of the project is to understand and come up with a conclusion about how successful was the game this current year based on different opinions and beliefs. 
 
 ### Steps to obtain data:
 
